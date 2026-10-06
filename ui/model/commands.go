@@ -64,6 +64,15 @@ type tracksLoadedMsg struct {
 	err           error
 }
 
+// waveExtendedMsg carries the next portion of an open-ended provider
+// playlist, such as the Yandex "Моя волна" radio session.
+type waveExtendedMsg struct {
+	tracks       []playlist.Track
+	providerName string
+	gen          uint64
+	err          error
+}
+
 type playlistsLoadedMsg struct {
 	playlists    []playlist.PlaylistInfo
 	providerName string
@@ -340,6 +349,16 @@ func fetchTracksCmd(prov playlist.Provider, playlistID string, gen uint64) tea.C
 			}
 		}
 		return msg
+	}
+}
+
+// extendPlaylistCmd asks an open-ended provider playlist for its next batch
+// off the Update goroutine. The provider appends the batch to its own session
+// state and returns only the new tracks.
+func extendPlaylistCmd(ext provider.PlaylistExtender, name, playlistID string, gen uint64) tea.Cmd {
+	return func() tea.Msg {
+		tracks, err := ext.ExtendPlaylist(playlistID)
+		return waveExtendedMsg{tracks: tracks, providerName: name, gen: gen, err: err}
 	}
 }
 

@@ -411,6 +411,23 @@ type Closer interface {
 	Close()
 }
 
+// PlaylistExtender is implemented by providers whose playlist is open-ended,
+// such as a personal radio wave that grows while the listener plays through
+// it. The UI calls it shortly before the end of the list, so the queue keeps
+// going instead of stopping after the last loaded track.
+type PlaylistExtender interface {
+	// CanExtendPlaylist reports whether the named playlist can grow past its
+	// initial load. It must not do I/O because the UI calls it from the
+	// Update goroutine.
+	CanExtendPlaylist(id string) bool
+	// ExtendPlaylist fetches the next portion of the named playlist from the
+	// provider's ongoing session and returns only the new tracks, in play
+	// order. The provider stores the fetched portion, so a later Tracks call
+	// returns the full grown list. It returns an error when the session
+	// cannot continue.
+	ExtendPlaylist(id string) ([]playlist.Track, error)
+}
+
 // TrackPager is implemented by providers that can return a playlist's tracks
 // one page at a time so the UI can populate the queue progressively. Pages are
 // requested sequentially: the caller feeds each returned next back in until it

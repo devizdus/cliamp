@@ -155,6 +155,81 @@ func TestLoadWaveWithContinuations(t *testing.T) {
 	}
 }
 
+func TestExtendWavePlaylist(t *testing.T) {
+	p, log := newTestProvider(t, [][]track{
+		{{ID: "1", Albums: []album{{ID: 11}}}, {ID: "2", Albums: []album{{ID: 12}}}},
+		{{ID: "3", Albums: []album{{ID: 13}}}},
+		{{ID: "4", Albums: []album{{ID: 14}}}, {ID: "5", Albums: []album{{ID: 15}}}},
+		{{ID: "6", Albums: []album{{ID: 16}}}},
+	})
+	if !p.CanExtendPlaylist(wavePlaylistID) {
+		t.Error("CanExtendPlaylist(wave) = false, want true")
+	}
+	if p.CanExtendPlaylist("pl:1:2") {
+		t.Error("CanExtendPlaylist(pl:1:2) = true, want false")
+	}
+	// Without an open session there is nothing to extend.
+	if _, err := p.ExtendPlaylist(wavePlaylistID); err == nil {
+		t.Fatal("ExtendPlaylist without a session returned no error")
+	}
+
+	if _, err := p.Tracks(wavePlaylistID); err != nil {
+		t.Fatalf("Tracks(wave) error = %v", err)
+	}
+
+	added, err := p.ExtendPlaylist(wavePlaylistID)
+	if err != nil {
+		t.Fatalf("ExtendPlaylist error = %v", err)
+	}
+	if len(added) != 1 || added[0].Path != TrackURIPrefix+"6" {
+		t.Fatalf("ExtendPlaylist added %v, want only track 6", added)
+	}
+	// The continuation request must carry the cumulative keys of the whole
+	// session, including the preloaded batches.
+	if len(log.queues) != 3 || len(log.queues[2]) != 5 || log.queues[2][4] != "5:15" {
+		t.Errorf("extend queue = %v, want cumulative keys ending in 5:15", log.queues)
+	}
+	// The session stays the same one, so feedback keeps working.
+	if p.wave.batchID != "batch-3" {
+		t.Errorf("wave batchID = %q, want batch-3", p.wave.batchID)
+	}
+
+	// The stored list has grown, so a reopen returns the full wave.
+	tracks, err := p.Tracks(wavePlaylistID)
+	if err != nil {
+		t.Fatalf("Tracks(wave) after extend error = %v", err)
+	}
+	if len(tracks) != 6 {
+		t.Fatalf("got %d wave tracks after extend, want 6", len(tracks))
+	}
+
+	// A batch without new tracks ends the session's growth.
+	if _, err := p.ExtendPlaylist(wavePlaylistID); err == nil {
+		t.Fatal("ExtendPlaylist past the last batch returned no error")
+	}
+	tracks, err = p.Tracks(wavePlaylistID)
+	if err != nil {
+		t.Fatalf("Tracks(wave) after failed extend error = %v", err)
+	}
+	if len(tracks) != 6 {
+		t.Fatalf("got %d wave tracks after failed extend, want 6", len(tracks))
+	}
+}
+
+func TestDedupeTracks(t *testing.T) {
+	batch := []track{
+		{ID: "1"}, // already served
+		{ID: "2"}, // already served
+		{ID: "3"},
+		{ID: "3"}, // repeated within the batch
+		{ID: ""},  // unusable
+	}
+	got := dedupeTracks(batch, []string{"1:11", "2:12"})
+	if len(got) != 1 || string(got[0].ID) != "3" {
+		t.Fatalf("dedupeTracks() = %v, want only track 3", got)
+	}
+}
+
 func TestWavePlaybackFeedback(t *testing.T) {
 	p, log := newTestProvider(t, [][]track{
 		{{ID: "1", DurationMs: 180000, Albums: []album{{ID: 11}}}},

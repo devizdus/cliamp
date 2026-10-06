@@ -125,6 +125,40 @@ func (m *Model) handleTracksLoaded(msg tracksLoadedMsg) tea.Cmd {
 	return nil
 }
 
+// handleWaveExtended appends the next portion of an open-ended provider
+// playlist (Yandex "Моя волна") to the queue. It mirrors the paged-load
+// append path: the queue overlay, the header stats and the armed preload must
+// all learn about the new rows.
+func (m *Model) handleWaveExtended(msg waveExtendedMsg) tea.Cmd {
+	if msg.gen != m.requests.extend || !m.isActiveProvider(msg.providerName) {
+		return nil
+	}
+	m.waveExtending = false
+	if msg.err != nil {
+		// The session refused to grow (or the request failed); stop asking
+		// until the listener reloads the playlist. The already loaded list
+		// keeps playing to its end.
+		m.waveExtendDone = true
+		m.status.Warningf(statusTTLDefault, "Playlist continuation failed: %v", msg.err)
+		return nil
+	}
+	if len(msg.tracks) == 0 {
+		m.waveExtendDone = true
+		return nil
+	}
+	m.playlist.Add(msg.tracks...)
+	m.normalizeQueueOverlay()
+	m.addToHeaderState(msg.tracks)
+	// Add mixes the batch into the upcoming order, so an armed preload may no
+	// longer hold the next track (same reason as in handleTracksLoaded).
+	if m.player.HasPreload() || m.preloading {
+		m.player.ClearPreload()
+		m.preloading = false
+	}
+	m.adjustScroll()
+	return nil
+}
+
 // handleCatalogBatch adds a batch of catalog entries to the provider pane.
 func (m *Model) handleCatalogBatch(msg catalogBatchMsg) {
 	if msg.gen != m.requests.catalog || !m.isActiveProvider(msg.providerName) {

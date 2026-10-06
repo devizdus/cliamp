@@ -190,6 +190,11 @@ func (m *Model) fetchProviderTracks(playlistID string) tea.Cmd {
 	if m.provider == nil {
 		return nil
 	}
+	// A fresh playlist load invalidates an in-flight playlist continuation
+	// and clears its sticky stop.
+	nextRequest(&m.requests.extend)
+	m.waveExtending = false
+	m.waveExtendDone = false
 	gen := nextRequest(&m.requests.tracks)
 	pager, paged := m.provider.(provider.TrackPager)
 	m.tracksPaging = paged

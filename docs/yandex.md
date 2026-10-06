@@ -45,7 +45,7 @@ Inside the TUI:
 
 The provider pane shows three sections: **My Music** (Liked Tracks and Моя волна), **My Playlists**, and **Saved Playlists** (playlists owned by other accounts that you follow).
 
-**Моя волна** (My Wave) starts a personal radio session and loads about fifteen tracks. Playback is reported back to the session, so future batches adapt to what you actually listen to. Press `Ctrl+R` while the wave is open to drop the session and start a fresh batch in place.
+**Моя волна** (My Wave) starts a personal radio session and loads about fifteen tracks. Playback is reported back to the session, so future batches adapt to what you actually listen to. When playback approaches the end of the loaded list, cliamp fetches the next batch from the same session in the background, so the wave keeps playing without stopping, the way the web player does. Press `Ctrl+R` while the wave is open to drop the session and start a fresh one in place.
 
 Track stream URLs are resolved at play time, so playlists load instantly and links never expire while sitting in the queue.
 

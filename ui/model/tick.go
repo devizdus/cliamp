@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bjarneo/cliamp/playlist"
+	"github.com/bjarneo/cliamp/provider"
 	"github.com/bjarneo/cliamp/ui"
 )
 
@@ -353,6 +354,7 @@ func (m *Model) handleTick(msg tickMsg) tea.Cmd {
 	}
 	m.advanceTitleScroll(now)
 	cmds = append(cmds, m.tickPreloadRetry())
+	cmds = append(cmds, m.tickExtendPlaylist())
 	m.advanceTerminalTitle()
 	cmds = append(cmds, tickCmdAt(m.tickInterval()))
 	return tea.Batch(cmds...)
@@ -592,4 +594,45 @@ func (m *Model) tickPreloadRetry() tea.Cmd {
 		return nil
 	}
 	return m.preloadNext()
+}
+
+// waveExtendAhead is how few tracks may follow the current one in play order
+// before the player asks an open-ended provider playlist for its next batch.
+// The same service's web player fetches its next wave batch at a similar
+// depth, so a fresh batch arrives long before the queue drains.
+const waveExtendAhead = 2
+
+// tickExtendPlaylist continues an open-ended provider playlist, such as the
+// Yandex "Моя волна" radio session, while the end of the loaded list
+// approaches. Without it the queue runs dry and playback stops after the last
+// track. One fetch runs at a time; a failed or empty continuation stops
+// retrying until the playlist is reloaded.
+func (m *Model) tickExtendPlaylist() tea.Cmd {
+	if m.provider == nil || m.playlist == nil || m.playbackDetached || m.waveExtending || m.waveExtendDone {
+		return nil
+	}
+	if !m.player.IsPlaying() || m.player.IsPaused() || m.buffering || m.tracksPaging {
+		return nil
+	}
+	ext, ok := m.provider.(provider.PlaylistExtender)
+	if !ok {
+		return nil
+	}
+	id := m.activeProviderPlaylistID
+	if id == "" || !ext.CanExtendPlaylist(id) {
+		return nil
+	}
+	// Count the tracks that still follow the current one in play order, so
+	// shuffle playback measures the real distance to the end.
+	idx := m.playlist.Index()
+	if idx < 0 {
+		return nil
+	}
+	pos := m.playlist.OrderPosition(idx)
+	if pos < 0 || m.playlist.Len()-1-pos > waveExtendAhead {
+		return nil
+	}
+	m.waveExtending = true
+	gen := nextRequest(&m.requests.extend)
+	return extendPlaylistCmd(ext, m.provider.Name(), id, gen)
 }

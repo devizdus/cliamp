@@ -540,6 +540,12 @@ type Model struct {
 	// flight. Each page remixes the upcoming order, so preloading is held off
 	// until the order settles. A frontier-EOF deferral would use this too.
 	tracksPaging bool
+	// waveExtending is true while a continuation fetch for an open-ended
+	// provider playlist (Yandex "Моя волна") is in flight; waveExtendDone is
+	// the sticky stop after the session refused to grow. fetchProviderTracks
+	// resets both on a fresh load.
+	waveExtending  bool
+	waveExtendDone bool
 	// Running counters for the cohesion heuristic so Add can update header
 	// visibility in O(k) instead of walking the whole playlist on each call.
 	headerLastAlbum string

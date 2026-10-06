@@ -16,6 +16,7 @@ var (
 	_ playlist.Provider         = (*Provider)(nil)
 	_ provider.Searcher         = (*Provider)(nil)
 	_ provider.PlaybackReporter = (*Provider)(nil)
+	_ provider.PlaylistExtender = (*Provider)(nil)
 )
 
 // TrackURIPrefix is the custom URI scheme for Yandex Music tracks. Track
@@ -101,6 +102,56 @@ func (p *Provider) Refresh() {
 // burns API calls.
 func (p *Provider) CanRefreshPlaylist(id string) bool {
 	return id == wavePlaylistID
+}
+
+// CanExtendPlaylist implements provider.PlaylistExtender: an open wave
+// session keeps serving new batches until it is dropped.
+func (p *Provider) CanExtendPlaylist(id string) bool {
+	return id == wavePlaylistID
+}
+
+// ExtendPlaylist fetches the next batch of the ongoing wave session and
+// returns the tracks that were not in the list yet. Implements
+// provider.PlaylistExtender. The session keeps its identity, so feedback and
+// later batches continue the same personalized wave. A fresh session starts
+// on the next load after Refresh drops the current one.
+func (p *Provider) ExtendPlaylist(id string) ([]playlist.Track, error) {
+	if id != wavePlaylistID {
+		return nil, fmt.Errorf("yandex: cannot extend playlist %q", id)
+	}
+	p.mu.Lock()
+	w := p.wave
+	var keys []string
+	if w != nil {
+		keys = append([]string(nil), w.keys...)
+	}
+	p.mu.Unlock()
+	if w == nil {
+		return nil, fmt.Errorf("yandex: no active wave session to extend")
+	}
+
+	batch, bid, err := p.api.rotorWaveTracks(context.Background(), w.sessionID, nil, keys)
+	if err != nil {
+		return nil, err
+	}
+	fresh := dedupeTracks(batch, keys)
+	if len(fresh) == 0 {
+		return nil, fmt.Errorf("yandex: wave returned no new tracks")
+	}
+	newTracks := p.toPlaylistTracks(fresh)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	// Refresh() may have dropped the session while the request ran. The
+	// batch belongs to a dead session then and must not merge into the new
+	// wave's list.
+	if p.wave != w {
+		return nil, fmt.Errorf("yandex: wave session was reset during extend")
+	}
+	w.batchID = bid
+	w.tracks = append(w.tracks, newTracks...)
+	w.keys = append(w.keys, trackKeys(fresh)...)
+	return newTracks, nil
 }
 
 // accountUserID returns the account user id, verifying the token on first use.
@@ -340,6 +391,26 @@ func trackKeys(ts []track) []string {
 		keys = append(keys, id)
 	}
 	return keys
+}
+
+// dedupeTracks drops batch entries whose track id is already covered by the
+// given "trackId:albumId" keys (or repeated within the batch), so a repeated
+// wave batch never duplicates rows in the list.
+func dedupeTracks(batch []track, keys []string) []track {
+	seen := make(map[string]bool, len(keys)+len(batch))
+	for _, k := range keys {
+		seen[plainID(k)] = true
+	}
+	out := make([]track, 0, len(batch))
+	for _, t := range batch {
+		id := string(t.ID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, t)
+	}
+	return out
 }
 
 func waveKeyFor(keys []string, id string) string {
