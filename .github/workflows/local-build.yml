@@ -1,0 +1,51 @@
+# Local build pipeline for the fork.
+#
+# Runs on every push to local/wave-extend: tests the patched packages,
+# builds a Linux amd64 binary and publishes it to the rolling "local"
+# release, so `update-cliamp.sh` (and any other machine) can fetch it
+# without a local Go toolchain.
+name: local-build
+
+on:
+  push:
+    branches: [local/wave-extend]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history, so git describe sees upstream tags
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+
+      - name: Install codec and ALSA headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libflac-dev libvorbis-dev libogg-dev libmpg123-dev
+
+      - name: Test the patched packages
+        run: go test ./external/yandex ./ui/model
+
+      - name: Build
+        run: |
+          VERSION="$(git describe --tags --always)-local"
+          echo "version: $VERSION"
+          go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o cliamp-linux-amd64 .
+
+      - name: Publish to the rolling "local" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view local --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create local --repo "$GITHUB_REPOSITORY" \
+              --prerelease --title "local build" \
+              --notes "Automated build of $GITHUB_SHA (branch local/wave-extend)"
+          gh release upload local cliamp-linux-amd64 --repo "$GITHUB_REPOSITORY" --clobber
