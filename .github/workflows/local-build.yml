@@ -67,7 +67,10 @@ jobs:
           CGO_ENABLED: "1"
         run: |
           export PKG_CONFIG_PATH="${MPG123_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig"
-          VERSION="$(git describe --tags --always)-local"
+          # Anchor describe to upstream v* tags only: the rolling "local"
+          # release also creates a git tag named "local", which would
+          # otherwise hijack the version string.
+          VERSION="$(git describe --tags --match 'v*' --always)-local"
           echo "version: $VERSION"
           go build -a -trimpath \
             -ldflags="-s -w -X main.version=${VERSION} -extldflags '-lvorbisenc -lvorbis -lFLAC -logg -lmpg123 -lm'" \
