@@ -1,9 +1,14 @@
 # Local build pipeline for the fork.
 #
 # Runs on every push to local/wave-extend: tests the patched packages,
-# builds a Linux amd64 binary and publishes it to the rolling "local"
-# release, so `update-cliamp.sh` (and any other machine) can fetch it
-# without a local Go toolchain.
+# builds a Linux amd64 binary with statically linked codec libraries and
+# publishes it to the rolling "local" release, so `update-cliamp.sh`
+# (and any other machine) can fetch it without a local Go toolchain.
+#
+# Static codecs mirror .github/workflows/release.yml: Ubuntu ships
+# libFLAC.so.12 while Arch and friends have newer sonames, so a naive
+# dynamic build would not run elsewhere. ALSA stays dynamic — its soname
+# is stable and every distro ships it.
 name: local-build
 
 on:
@@ -31,14 +36,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev libflac-dev libvorbis-dev libogg-dev libmpg123-dev
 
+      - name: Force static linking of codec libs
+        run: |
+          # Remove .so symlinks so the linker falls back to the static .a
+          # archives (same trick as release.yml).
+          LIB_DIR=/usr/lib/x86_64-linux-gnu
+          sudo rm -f "$LIB_DIR"/libFLAC.so "$LIB_DIR"/libvorbis.so \
+                     "$LIB_DIR"/libvorbisenc.so "$LIB_DIR"/libogg.so
+
+      - name: Build static mpg123
+        run: |
+          VERSION=1.32.6
+          ARCHIVE="mpg123-${VERSION}.tar.bz2"
+          PREFIX="${RUNNER_TEMP}/mpg123"
+          curl -fsSL "https://www.mpg123.de/download/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          echo "ccdd1d0abc31d73d8b435fc658c79049d0a905b30669b6a42a03ad169dc609e6  ${RUNNER_TEMP}/${ARCHIVE}" | sha256sum -c -
+          tar -xjf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          cd "${RUNNER_TEMP}/mpg123-${VERSION}"
+          ./configure --with-cpu=x86-64 --disable-shared --enable-static \
+            --disable-components --enable-libmpg123 --disable-network --prefix="$PREFIX"
+          make -j2
+          make install
+          echo "MPG123_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+
       - name: Test the patched packages
         run: go test ./external/yandex ./ui/model
 
       - name: Build
+        env:
+          CGO_ENABLED: "1"
         run: |
+          export PKG_CONFIG_PATH="${MPG123_PREFIX}/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig"
           VERSION="$(git describe --tags --always)-local"
           echo "version: $VERSION"
-          go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o cliamp-linux-amd64 .
+          go build -a -trimpath \
+            -ldflags="-s -w -X main.version=${VERSION} -extldflags '-lvorbisenc -lvorbis -lFLAC -logg -lmpg123 -lm'" \
+            -o cliamp-linux-amd64 .
+          if readelf -d cliamp-linux-amd64 | grep -E 'Shared library:.*(FLAC|vorbis|ogg|mpg123)'; then
+            echo "codec libraries must be statically linked" >&2
+            exit 1
+          fi
 
       - name: Publish to the rolling "local" release
         env:
