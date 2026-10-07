@@ -1,3 +1,8 @@
+> [!NOTE]
+> **Temporary fork** of [bjarneo/cliamp](https://github.com/bjarneo/cliamp) carrying Yandex Music fixes: My Wave loads more tracks on demand (upstream PR [bjarneo/cliamp#516](https://github.com/bjarneo/cliamp/pull/516)).
+>
+> It exists only until that PR is merged upstream. Fork builds are published to the rolling [`local` release](https://github.com/devizdus/cliamp/releases/tag/local). Everything below is the upstream README.
+
 [![Docs on contextowl.co](https://contextowl.co/uploads/_brand/badge-docs.svg)](https://contextowl.co)
 
 A retro terminal music player inspired by Winamp. Play local files, streams, podcasts, YouTube, YouTube Music, SoundCloud, Mixcloud, Bilibili, Spotify, Qobuz, Tidal, NetEase Cloud Music, Yandex Music, Xiaoyuzhou (小宇宙), Navidrome, Lyrion, Plex, Jellyfin, Emby, and Audiobookshelf. Use the spectrum visualizer, parametric EQ, and playlists.
