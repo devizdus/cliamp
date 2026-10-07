@@ -1,23 +1,26 @@
 > [!NOTE]
 > **Temporary fork** of [bjarneo/cliamp](https://github.com/bjarneo/cliamp) carrying Yandex Music fixes: My Wave loads more tracks on demand (upstream PR [bjarneo/cliamp#516](https://github.com/bjarneo/cliamp/pull/516)).
 >
-> It exists only until that PR is merged upstream. Fork builds are published to the rolling [`local` release](https://github.com/devizdus/cliamp/releases/tag/local). Everything below is the upstream README.
-
-[![Docs on contextowl.co](https://contextowl.co/uploads/_brand/badge-docs.svg)](https://contextowl.co)
+> It exists only until that PR is merged upstream. Fork builds are published to the rolling [`local` release](https://github.com/devizdus/cliamp/releases/tag/local).
+>
+> **Install this fork** (Linux amd64, statically linked codecs):
+>
+> ```sh
+> curl -fsSLo cliamp https://github.com/devizdus/cliamp/releases/download/local/cliamp-linux-amd64
+> chmod +x cliamp && sudo mv cliamp /usr/local/bin/
+> ```
+>
+> **Do not** follow the install instructions below (`install.sh`, `brew`, AUR, `nix run`, `go install`) — they install the **upstream** build without this fork's fixes and would overwrite the patched binary. `go install` cannot target this fork at all: the Go module path remains `github.com/bjarneo/cliamp`. Everything below is the upstream README.
 
 A retro terminal music player inspired by Winamp. Play local files, streams, podcasts, YouTube, YouTube Music, SoundCloud, Mixcloud, Bilibili, Spotify, Qobuz, Tidal, NetEase Cloud Music, Yandex Music, Xiaoyuzhou (小宇宙), Navidrome, Lyrion, Plex, Jellyfin, Emby, and Audiobookshelf. Use the spectrum visualizer, parametric EQ, and playlists.
 
-**[cliamp.stream](https://cliamp.stream)** | **[docs](https://whiterose.org.contextowl.co/docs/cliamp)** | **[android](https://github.com/cliamp/cliamp-mobile)** | **[discord](https://discord.gg/4VpCzXPuj2)**
+**[cliamp.stream](https://cliamp.stream)** | **[docs](https://whiterose.org.contextowl.co/docs/cliamp)** | **[android](https://github.com/cliamp/cliamp-mobile)**
 
 On a phone, run [cliamp mobile](https://github.com/cliamp/cliamp-mobile). It is a native Android client for radio, podcasts, and the same servers this player talks to.
 
 cliamp uses [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep), and [go-librespot](https://github.com/devgianlu/go-librespot).
 
 https://github.com/user-attachments/assets/55e251f2-e13b-43d9-bb6a-7b1960e7d7d0
-
-<div align="center">
-  <a href="https://contextowl.co"><img src="https://contextowl.co/uploads/_brand/sponsor-dark.svg" alt="Proudly sponsored by contextowl.co" width="400"></a>
-</div>
 
 ## Install
 
